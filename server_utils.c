@@ -42,9 +42,11 @@ void send_home( int sock ) {
     
 	snprintf( outbuf, sizeof(outbuf), 
   	    "HTTP/1.0 200 OK\r\n"
+  	    "Server: %s\r\n"
   	    "Content-Type:text/html\r\n"
 		"Date: %s\r\n"
-		"<font color=red><h1>404 Not Available.</h1></font>\r\n", 
+		"Connection: Closed\r\n"
+		"<font color=red><h1>404 Not Available.</h1></font>\r\n", SERVER,
 		asctime( date ) );
     send( sock, outbuf, (int)strlen(outbuf), 0);
 #ifdef DEBUG
@@ -64,8 +66,10 @@ void send_header( int sock ) {
     
 	snprintf( outbuf, sizeof(outbuf), 
   	    "HTTP/1.0 200 OK\r\n"
+  	    "Server: %s\r\n"
   	    "Content-Type:text/html\r\n"
-		"Date: %s\r\n", asctime( date ) );
+  	    "Connection: Closed\r\n"
+		"Date: %s\r\n", SERVER, asctime( date ) );
     send( sock, outbuf, (int)strlen(outbuf), 0);
 #ifdef DEBUG
 	printf("Finish send_header \n");
@@ -107,9 +111,8 @@ void send_html( int sock, const char* FILENAME ) {
 #endif
 	return;
 }
-
-/* Handle for each socket */
-int sock_handle( int newsock ) {
+/* Handle for each client */
+int client_handle( Client *c ) {
   	/* recv(), send(), close() */
 
   	// recv()
@@ -117,16 +120,16 @@ int sock_handle( int newsock ) {
 	//char *inbuf;
     memset( &inbuf, 0, sizeof(inbuf) );
     struct timeval timeout;      
-    timeout.tv_sec = 10;
+    timeout.tv_sec = 30;
     timeout.tv_usec = 0;
-
-    if (setsockopt (newsock, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) < 0)
+	printf("Serving client (IP:port)%s:%d\n",c->IP,c->port);
+    if (setsockopt (c->socket, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) < 0)
         printf("setsockopt failed\n");
 
-    if (setsockopt (newsock, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout, sizeof(timeout)) < 0)
+    if (setsockopt (c->socket, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout, sizeof(timeout)) < 0)
         printf("setsockopt failed\n");
-    if ( recv( newsock, inbuf, sizeof(inbuf), 0 ) < 0 ) {
-    	close( newsock );
+    if ( recv( c->socket, inbuf, sizeof(inbuf), 0 ) < 0 ) {
+    	close( c->socket );
 		perror("recv");
 		return FALSE;
     };
@@ -139,79 +142,64 @@ int sock_handle( int newsock ) {
      
 
 #ifdef DEBUG
-    printf( "%s", inbuf );
+    printf( "%s\n", inbuf );
 #endif
 	
-	// send()
-/*	char method[256], url[256], http_ver[256];
-	char *request_file;
-	
-	memset( &method, 0, sizeof( method ) );
-	memset( &url, 0, sizeof( url ) );
-	memset( &http_ver, 0, sizeof( http_ver ) );
-	
-	sscanf( inbuf, "%s %s %s", method, url, http_ver );
-*/
 	req *r = parse_request(inbuf);
 	if(r==NULL)
 	{
 	    printf("Unable to parse request\n");
 	    return(FALSE);
 	}
-	//printf("method %s uri %s proto %s \n",r->method,r->uri,r->protocol);
+#ifdef DEBUG
+	printf("method %s uri %s proto %s \n",r->method,r->uri,r->protocol);
+#endif
 	if(strcasecmp(r->method,"GET")==0)
-	    do_get(newsock,r);
+	    do_get(c->socket,r);
 	else if(strcasecmp(r->method,"POST")==0)
-	    do_post(newsock,r);
+	    do_post(c->socket,r);
 	else if(strcasecmp(r->method,"PUT")==0)
-	    do_put(newsock,r);
+	    do_put(c->socket,r);
 	else if(strcasecmp(r->method,"DELETE")==0)
-	    do_del(newsock,r);
+	    do_del(c->socket,r);
 	else if(strcasecmp(r->method,"HEAD")==0)
-	    do_head(newsock,r);
+	    do_head(c->socket,r);
 	else
-	    do_unknown(newsock,r);
+	    do_unknown(c->socket,r);
 	
-	// get method
-/*	if ( !strncasecmp( method, "GET", strlen( "GET" ) ) ) {
-		// request page is slash "/"
-		
-			// sending index file
-			request_file = "index.html";
-		}
-		else {
-			// exclude "/"
-			request_file = url + 1;
-		}
-		send_html( newsock, request_file );
-	}
-*/	
     if(r)
     {
-	free(r);
-	r = NULL;
+		free(r);
+		r = NULL;
     }
-  return TRUE;
+	return TRUE;
 }
 
 void do_get(int sock,req *r)
 {
     char request_file[1024]="";
-    strcpy(request_file,WORK_DIR);
+    strcpy(request_file,WORK_DIR); // append working directory
     // for the time being we will serv only disk files no virtual resource
-    if(!strncmp(r->uri,"/",strlen("/")) && (strlen(r->uri) == 1 ) ) 
-    //if(strncmp(r->uri,"/",strlen("/")==0) && strlen(r->uri)==1)
+    //printf("%s\n",r->uri);
+    // we dont allow 2 dots consecutively in url
+    if(strstr(r->uri,".."))
+    {
+		do_unknown(sock, r);
+		return;
+	}
+	if(!strncmp(r->uri,"/",strlen("/")) && (strlen(r->uri) == 1 ) ) 
     {
 	// landing page or resource
 	// for the time being index.html
-	strcat(request_file ,"/index.html");
+		strcat(request_file ,"/index.html");
     }
     else
     {
-//	strcpy(request_file,WORK_DIR);
-	strcat(request_file,r->uri);
+	//	strcpy(request_file,WORK_DIR);
+	
+		strcat(request_file,r->uri);
     }
-    //printf("request file = %s\n",request_file);
+    printf("request file = %s\n",request_file);
     send_html(sock,request_file);
 }
 void do_unknown(int sock, req* r)
@@ -245,5 +233,6 @@ void do_del(int sock,req *r)
 }
 void do_head(int sock,req *r)
 {
-    do_unknown(sock,r);
+    //do_unknown(sock,r);
+    send_header(sock);
 }

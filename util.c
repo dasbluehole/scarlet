@@ -50,3 +50,24 @@ int validate_ip(char *ip)
     }
     return(1);   
 }
+
+void remove_duplicates( char *s, char c )
+{
+    for ( char *p = s, *q = s; *q; )
+    {
+        if ( *++q != c || *p != c )
+        {
+            *++p = *q;
+        }
+    }
+    //return s;
+}
+#ifdef TEST
+int main()
+{
+	char str[100] = "/a//b///c////abc/////x/////abc////";
+	remove_duplicates(str,'/');
+	printf("%s\n",str);
+	return(0);
+}
+#endif

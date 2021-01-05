@@ -21,14 +21,45 @@
 #include "mysock.h"
 #include "util.h"
 
+
+Server create_server(int port,char *ip)
+{
+	Server srv;
+	//ok we will create a server socket
+	int srv_sock=-1;
+	srv_sock = create_server_socket(ip,port,SOCK_STREAM);
+	if(srv_sock<0)
+	{
+		printf("Can not create a server socket\n");
+		switch(srv_sock)
+		{
+			case -100 : printf("Unable to create socket\n");
+				break;
+			case -101 : printf("Unable to bind to port\n");
+				break;
+			case -102 : printf("unable to listen\n");
+				break;
+		}
+		//exit(EXIT_FAILURE);
+	}
+	strcpy(srv.IP,ip);
+	srv.port = port;
+	strcpy(srv.name, SERVER);
+	srv.socket = srv_sock;
+	return(srv);
+}
+
 // this function will handle a request just after accept 
 // till the process exits
 void *send_recv_thread( void *arg ) {
 	pthread_detach ( pthread_self() );
-	int acc = (int) arg;
+	Client *clnt =(Client *) malloc(sizeof(Client));
+	memcpy(clnt, arg,sizeof(Client));
+	free(arg);
 	
-	sock_handle( acc );
-	close( acc );
+	client_handle( clnt );
+	close( clnt->socket );
+	free(clnt);
 	pthread_exit((void*) 0);
 }
 int main(int argc, char *argv[])
@@ -59,30 +90,18 @@ int main(int argc, char *argv[])
 		printf("Invalid port\n");
 		exit(EXIT_FAILURE);
 	}
-	//ok we will create a server socket
-	int srv_sock=-1, clnt_sock=-1;
-	srv_sock = create_server_socket(IP,srv_port,SOCK_STREAM);
-	if(srv_sock<0)
+	//we created a server
+	Server s = create_server(srv_port,IP);
+	if(s.socket <0)
 	{
-		printf("Can not create a server socket\n");
-		switch(srv_sock)
-		{
-			case -100 : printf("Unable to create socket\n");
-				break;
-			case -101 : printf("Unable to bind to port\n");
-				break;
-			case -102 : printf("unable to listen\n");
-				break;
-		}
+		printf("Could not create a server hence exiting\n");
 		exit(EXIT_FAILURE);
 	}
-	
-	//we created a socket
 	while(1)	// infinite server loop
 	{
 		struct sockaddr_in comming_addr;
-		socklen_t size = sizeof( struct sockaddr_in );
-		clnt_sock = accept_client(srv_sock,(struct sockaddr*)&comming_addr);//,&size);
+		//socklen_t size = sizeof( struct sockaddr_in );
+		int clnt_sock = accept_client(s.socket,(struct sockaddr*)&comming_addr);//,&size);
 		if(clnt_sock<0)
 		{
 	      	/*We couldnot accept*/
@@ -92,13 +111,28 @@ int main(int argc, char *argv[])
 			continue;
 		}
 		//good to go
-		printf("Remote: %s on port %d \r\n", inet_ntoa(comming_addr.sin_addr), htons(comming_addr.sin_port));
+		Client *c =(Client *)malloc(sizeof(Client));
+		if(c==NULL)
+		{
+			printf("Memory allocation error for client\n");
+			perror("malloc:");
+			close(clnt_sock);
+			close(s.socket);
+			exit(EXIT_FAILURE);
+		}
+		c->socket = clnt_sock;
+		c->port = htons(comming_addr.sin_port);
+		strcpy(c->IP,inet_ntoa(comming_addr.sin_addr));
+		//printf("Remote: %s on port %d \r\n", inet_ntoa(comming_addr.sin_addr), htons(comming_addr.sin_port));
 		//here we should process the http request in a separate thread.
-		if ( pthread_create( &thread, NULL, send_recv_thread, (void *)clnt_sock ) != 0 ) 
+		if ( pthread_create( &thread, NULL, send_recv_thread, c) != 0 ) 
 		{
 		  perror( "pthread_create" );
+		  close(c->socket);
+		  close(s.socket);
+		  exit(EXIT_FAILURE);
 		}
 	}
-	close(srv_sock); // we are done
+	close(s.socket); // we are done
 	return(0);
 }
