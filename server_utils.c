@@ -133,6 +133,7 @@ int client_handle( Client *c ) {
 		perror("recv");
 		return FALSE;
     };
+   
     /*int status=read(socket, &inbuf, 255); 
     if(status<0) 
     {
@@ -142,7 +143,9 @@ int client_handle( Client *c ) {
      
 
 #ifdef DEBUG
-    printf( "%s\n", inbuf );
+	printf("Buffer--->\n");
+    printf("%s\n", inbuf );
+    printf("==========\n");
 #endif
 	
 	req *r = parse_request(inbuf);
@@ -169,6 +172,11 @@ int client_handle( Client *c ) {
 	
     if(r)
     {
+		if(r->payload)
+		{
+			free(r->payload);
+			r->payload = NULL;
+		}
 		free(r);
 		r = NULL;
     }
@@ -199,7 +207,7 @@ void do_get(int sock,req *r)
 	
 		strcat(request_file,r->uri);
     }
-    printf("request file = %s\n",request_file);
+    //printf("request file = %s\n",request_file);
     send_html(sock,request_file);
 }
 void do_unknown(int sock, req* r)
@@ -220,6 +228,7 @@ void do_unknown(int sock, req* r)
 void do_post(int sock,req *r)
 {
     do_unknown(sock,r);
+    printf("payload = %s \n",r->payload);
 }
 
 void do_put(int sock,req *r)

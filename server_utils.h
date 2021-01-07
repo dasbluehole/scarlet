@@ -9,6 +9,7 @@
 */
 #ifndef __SERVER_UTILS_H__
 #define __SERVER_UTILS_H__
+#include <stdio.h>
 #define PORT "8080"  /* My port to listen on, in test server = uuid + 21600 */
 #define LISTENQ 10  /* Default pass to listen */
 #define MAXBUF 4096

@@ -58,6 +58,7 @@ void *send_recv_thread( void *arg ) {
 	free(arg);
 	
 	client_handle( clnt );
+	usleep(10);
 	close( clnt->socket );
 	free(clnt);
 	pthread_exit((void*) 0);

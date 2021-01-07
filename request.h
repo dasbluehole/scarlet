@@ -1,10 +1,16 @@
 #ifndef _REQPARSE_H_
 #define _REQPARSE_H_
+struct header
+{
+    char key[64],value[1024];
+};
 typedef struct request
 {
     char method[10]; 
-    char uri[4096]; //PATH_MAX
+    char uri[2048]; //PATH_MAX
     char protocol[10];
+    struct header harray[32];   // maximum number of headers 
+    char *payload;
 }req;
 
 req *parse_request(char *buf);
