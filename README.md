@@ -1,9 +1,11 @@
 # scarlet
 A small and tiny HTTP server for testing
-Based on https://github.com/OminiaVincit/http_server
+Based on https://github.com/OminiaVincit/http_server (now Heavily Modified)
+#### Currently it supports Static files(html,CSS,js,plain text) and user defined function through routing.
+User functions are defined in <b>myapp.h</b>. They are registered in <b>main function in scarlet.c</b> by using <b>add_route()</b> function.
 
-This one is very experimental though. Read the code and use it for fun
-In future It may develop into some Web Application framework like Bottle or flask or may be something else.
+This one is very experimental though. Read the code and use it for fun.
+it is a very small <b><i>Web Application framework</i></b> like Bottle or flask or may be something else.
 Who knows.... better you  suggest and try ;)
 Bellow is the Output of httperf on this server.
 
