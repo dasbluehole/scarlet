@@ -21,10 +21,14 @@
 
 #include "server_utils.h"
 #include "request.h"
+#include "router.h"
+#include "mime.h"
 
 #define TRUE 1
 #define FALSE 0
 #define WORK_DIR "/var/www"
+
+extern router *rtr;
 /* Error handling */
 void err_handle( char * msg ) {
 	perror( msg );
@@ -56,7 +60,13 @@ void send_home( int sock ) {
 }
 
 /* Send html header */
-void send_header( int sock ) {
+void send_header( int sock, char *fmime ) 
+{
+	if(sock < -1 || fmime == NULL)
+	{
+		printf("Error: Invalid Socket or mime type\n");
+		return;
+	}
 	char outbuf[ MAXBUF + 1];
 	memset( &outbuf, 0, sizeof(outbuf) );
 	
@@ -67,9 +77,9 @@ void send_header( int sock ) {
 	snprintf( outbuf, sizeof(outbuf), 
   	    "HTTP/1.0 200 OK\r\n"
   	    "Server: %s\r\n"
-  	    "Content-Type:text/html\r\n"
+  	    "Content-Type: %s\r\n"
   	    "Connection: Closed\r\n"
-		"Date: %s\r\n", SERVER, asctime( date ) );
+		"Date: %s\r\n", SERVER, fmime, asctime( date ) );
     send( sock, outbuf, (int)strlen(outbuf), 0);
 #ifdef DEBUG
 	printf("Finish send_header \n");
@@ -102,7 +112,7 @@ void send_html( int sock, const char* FILENAME ) {
 		// send html header only
 		send_home( sock );
 	} else {
-		send_header( sock );
+		send_header( sock, "text/html" );
 		send_data( sock, fp );
 		fclose( fp );
 	}
@@ -110,6 +120,21 @@ void send_html( int sock, const char* FILENAME ) {
 	printf("Finish send_html \n");
 #endif
 	return;
+}
+void send_static_file(int sock, const char *filename)
+{
+	FILE *fp=NULL;
+	fp = fopen(filename, "r");
+	if(fp == NULL)
+	{
+		send_home(sock);
+	}
+	else
+	{
+		send_header( sock, get_mime_type(filename) );
+		send_data( sock, fp );
+		fclose( fp );
+	}
 }
 /* Handle for each client */
 int client_handle( Client *c ) {
@@ -132,15 +157,7 @@ int client_handle( Client *c ) {
     	close( c->socket );
 		perror("recv");
 		return FALSE;
-    };
-   
-    /*int status=read(socket, &inbuf, 255); 
-    if(status<0) 
-    {
-		printf("There was an error reading the input");
-		return(FALSE);
-	}*/
-     
+    };     
 
 #ifdef DEBUG
 	printf("Buffer--->\n");
@@ -157,6 +174,30 @@ int client_handle( Client *c ) {
 #ifdef DEBUG
 	printf("method %s uri %s proto %s \n",r->method,r->uri,r->protocol);
 #endif
+	
+	if(do_router(rtr,c->socket,r)==-1)
+	{
+		//try static service
+		// here we should check if uri is a file
+		// if so then we will only allow "html,js,css,txt" extension
+		// else we will handover to router
+		char file_mime[100];
+		strcpy(file_mime,get_mime_type(r->uri));
+		if(strcasecmp(file_mime,"text/plain")==0 || strcasecmp(file_mime,"text/css")==0 \
+		|| strcasecmp(file_mime,"text/html")==0 || strcasecmp(file_mime,"application/javascript")==0)
+		{
+			char request_file[1024]="";
+			strcpy(request_file,WORK_DIR); // append working directory
+			strcat(request_file,"/static");
+			strcat(request_file,r->uri);
+			send_static_file(c->socket,request_file); 
+		}
+		else
+			send_home(c->socket);
+	}
+	
+		
+	/* the following are for static file serving
 	if(strcasecmp(r->method,"GET")==0)
 	    do_get(c->socket,r);
 	else if(strcasecmp(r->method,"POST")==0)
@@ -169,7 +210,7 @@ int client_handle( Client *c ) {
 	    do_head(c->socket,r);
 	else
 	    do_unknown(c->socket,r);
-	
+	*/
     if(r)
     {
 		if(r->payload)
@@ -227,13 +268,16 @@ void do_unknown(int sock, req* r)
 }
 void do_post(int sock,req *r)
 {
-    do_unknown(sock,r);
+    //do_unknown(sock,r);
     printf("payload = %s \n",r->payload);
+    send_header(sock,"text/plain");
 }
 
 void do_put(int sock,req *r)
 {
-    do_unknown(sock,r);
+    //do_unknown(sock,r);
+    printf("File tobe created %s%s\n",WORK_DIR,r->uri);
+    printf("With content--->\n%s\n",r->payload);
 }
 
 void do_del(int sock,req *r)
@@ -243,5 +287,5 @@ void do_del(int sock,req *r)
 void do_head(int sock,req *r)
 {
     //do_unknown(sock,r);
-    send_header(sock);
+    send_header(sock,"text/plain");
 }

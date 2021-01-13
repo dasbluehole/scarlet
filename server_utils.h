@@ -40,7 +40,7 @@ void err_handle( char * msg );
 void send_home( int sock );
 
 /* Send html header */
-void send_header( int sock );
+void send_header( int sock, char *fmime );
 
 /* Send html data */
 void send_data( int sock, FILE* fp );

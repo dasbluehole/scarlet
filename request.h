@@ -21,5 +21,5 @@ void do_unknown(int sock,req* r);
 void do_put(int sock,req *r);
 void do_del(int sock,req *r);
 void do_head(int sock,req *r);
-
+void dump_request(req *rq);
 #endif

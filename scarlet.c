@@ -20,8 +20,10 @@
 #include "server_utils.h"
 #include "mysock.h"
 #include "util.h"
+#include "router.h"
+#include "myapp.h"
 
-
+router *rtr=NULL;	// globally defined
 Server create_server(int port,char *ip)
 {
 	Server srv;
@@ -91,6 +93,21 @@ int main(int argc, char *argv[])
 		printf("Invalid port\n");
 		exit(EXIT_FAILURE);
 	}
+	/* we will create our dynamic content router here */
+	rtr= create_router();
+	if(rtr==NULL)
+	{
+		printf("Error: Memory allocation failed\n");
+		exit(EXIT_FAILURE);
+	}
+	// go ahead 
+	// here all the callback functions are added which were 
+	// written separately as user application functions.
+	add_route(rtr,"GET","/",send_index);
+	add_route(rtr,"GET","/login",send_login);
+	add_route(rtr,"POST","/login",validate);
+    add_route(rtr,"GET","/test",do_test);
+	
 	//we created a server
 	Server s = create_server(srv_port,IP);
 	if(s.socket <0)
